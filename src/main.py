@@ -2,7 +2,8 @@
 TODO
 """
 
-import torch  # we use PyTorch: https://pytorch.org
+import torch
+import yaml
 from contextlib import nullcontext
 
 from models import BigramLanguageModel
@@ -25,27 +26,32 @@ def main():
     stoi = {ch: i for i, ch in enumerate(chars)}
 
     # ==========================================
-    # ===== Define parameters of the model =====
+    # ===== Load parameters from json file =====
     # ==========================================
+    filepath = 'params.yml'
+    with open(filepath) as file:
+        params = yaml.load(file, Loader=yaml.FullLoader)
+
+    n_embed = params['n_embed']
+    learn_rate = params['learn_rate']
+    eval_iters = params['eval_iters']
+    iter_num = params['iter_num']
+    n_layers = params['n_layers']
+    num_heads = params['num_heads']
+    block_size = params['block_size']
+    batch_size = params['batch_size']
+    output_size = params['output_size']
+    dropout = params['dropout']
+    device = params['device']
+    dtype = params['dtype']
+    seed = params['seed']
+
+    torch.manual_seed(seed)
     vocab_size = len(chars)
-    n_embed = 32
-    learn_rate = 1e-3
-    eval_iters = 200
-    iter_num = 5000
-    n_layers = 3
-    num_heads = 4
-    block_size = 8  # what is the maximum context length for predictions?
-    batch_size = 32
-    output_size = 100 # how many characters to print of the trained network
-    dropout = 0.1
-    # torch.manual_seed(1337)
 
     # ===========================
     # ===== Device settings =====
     # ===========================
-    device = 'cpu'  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
-    # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
-    dtype = 'bfloat16'
     torch.backends.cuda.matmul.allow_tf32 = True  # allow tf32 on matmul
     torch.backends.cudnn.allow_tf32 = True  # allow tf32 on cudnn
     # for later use in torch.autocast

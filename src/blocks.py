@@ -4,7 +4,7 @@ TODO
 
 import torch.nn as nn
 
-from communication import SingleHeadAttention, MultiHeadAttention
+from communication import MultiHeadAttention
 from computation import FeedFoward
 
 

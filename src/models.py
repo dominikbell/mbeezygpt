@@ -2,7 +2,7 @@
 TODO
 """
 
-import torch  # we use PyTorch: https://pytorch.org
+import torch
 from torch.nn import functional as F
 import torch.nn as nn
 
@@ -10,7 +10,8 @@ from blocks import StandardBlock
 
 
 class BigramLanguageModel(nn.Module):
-    """
+    """ TODO
+
     Parameters
     ----------
     vocab_size: int
@@ -96,7 +97,7 @@ class BigramLanguageModel(nn.Module):
             # crop idx to last block_size tokens
             idx_cond = idx[:, -block_size:]
             # get the predictions
-            logits, loss = self(idx_cond)
+            logits, _ = self(idx_cond)
             # focus only on the last time step
             logits = logits[:, -1, :]  # becomes (B, C)
             # apply softmax to get probabilities

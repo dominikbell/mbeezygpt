@@ -4,6 +4,8 @@ TODO
 
 import torch.nn as nn
 
+from utils import new_gelu
+
 
 class FeedFoward(nn.Module):
     """ a simple linear layer followed by a non-linearity

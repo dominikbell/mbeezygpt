@@ -16,7 +16,7 @@ def main(params, cont=False):
     # =================================
     # ===== Read in training data =====
     # =================================
-    with open('input.txt', 'r', encoding='utf-8') as f:
+    with open('mb_input.txt', 'r', encoding='utf-8') as f:
         text = f.read()
 
     # get all character appearing in the text, optionally add all integers
@@ -86,7 +86,7 @@ def main(params, cont=False):
     val_data = data[n:]
 
     xb, yb = get_batch('train', block_size, batch_size,
-                       train_data, val_data, device)
+                       train_data, val_data, device, device_type)
 
     # ============================
     # ===== Define the model =====
@@ -122,7 +122,7 @@ def main(params, cont=False):
 
         # sample a batch of data
         xb, yb = get_batch('train', block_size, batch_size,
-                           train_data, val_data, device)
+                           train_data, val_data, device, device_type)
 
         # evaluate the loss
         _, loss = model(xb, yb)
@@ -141,7 +141,7 @@ def main(params, cont=False):
           block_size=block_size)[0].tolist(), itos))
     losses = estimate_loss(model, eval_iters, block_size,
                            batch_size, train_data, val_data,
-                           device, ctx)
+                           device, device_type, ctx)
     print(f"\nstep {iter_num}: \
             train loss {losses['train']:.4f}, \
             val loss {losses['val']:.4f}")
@@ -161,7 +161,7 @@ def decode(l: list, itos: dict):
     return ''.join([itos[i] for i in l])
 
 
-def get_batch(split, block_size, batch_size, train_data, val_data, device):
+def get_batch(split, block_size, batch_size, train_data, val_data, device, device_type):
     """
     Get a batch (consisting of chunks) of the data.
 
@@ -180,13 +180,16 @@ def get_batch(split, block_size, batch_size, train_data, val_data, device):
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack([data[i:i+block_size] for i in ix])
     y = torch.stack([data[i+1:i+block_size+1] for i in ix])
-    x = x.to(device)
-    y = y.to(device)
+    if device_type == 'cuda':
+        # pin arrays x,y, which allows us to move them to GPU asynchronously (non_blocking=True)
+        x, y = x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(device, non_blocking=True)
+    else:
+        x, y = x.to(device), y.to(device)
     return x, y
 
 
 @torch.no_grad()
-def estimate_loss(model, eval_iters, block_size, batch_size, train_data, val_data, device, ctx):
+def estimate_loss(model, eval_iters, block_size, batch_size, train_data, val_data, device, device_type, ctx):
     """ helps estimate an arbitrarily accurate loss over either split using many batches
 
     Parameters
@@ -199,7 +202,7 @@ def estimate_loss(model, eval_iters, block_size, batch_size, train_data, val_dat
         losses = torch.zeros(eval_iters)
         for k in range(eval_iters):
             X, Y = get_batch(split, block_size, batch_size,
-                             train_data, val_data, device)
+                             train_data, val_data, device, device_type)
             with ctx:
                 _, loss = model(X, Y)
             losses[k] = loss.item()

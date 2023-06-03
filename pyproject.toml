@@ -3,4 +3,5 @@ dependencies = [
     'pytest',
     'tqdm',
     'torch',
+    'lxml',
 ]

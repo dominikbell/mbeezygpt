@@ -5,11 +5,14 @@ TODO
 import torch
 import yaml
 from contextlib import nullcontext
+import numpy as np
+import os
+from argparse import ArgumentParser
 
 from models import BigramLanguageModel
 
 
-def main():
+def main(params, cont=False):
     # =================================
     # ===== Read in training data =====
     # =================================
@@ -28,10 +31,6 @@ def main():
     # ==========================================
     # ===== Load parameters from json file =====
     # ==========================================
-    filepath = 'params.yml'
-    with open(filepath) as file:
-        params = yaml.load(file, Loader=yaml.FullLoader)
-
     n_embed = params['n_embed']
     learn_rate = params['learn_rate']
     eval_iters = params['eval_iters']
@@ -48,6 +47,18 @@ def main():
 
     torch.manual_seed(seed)
     vocab_size = len(chars)
+
+    # Create folder and file to save model after training
+    save_file = 'save/model.pt'
+    save_path = os.path.dirname(save_file)
+    if cont:
+        assert os.path.exists(save_file)
+        print('Continuing from already trained model')
+    else:
+        if not os.path.exists(save_path):
+            os.mkdir(save_path)
+            with open(save_file, 'w'):
+                pass
 
     # ===========================
     # ===== Device settings =====
@@ -74,7 +85,8 @@ def main():
     train_data = data[:n]
     val_data = data[n:]
 
-    xb, yb = get_batch('train', block_size, batch_size, train_data, val_data, device)
+    xb, yb = get_batch('train', block_size, batch_size,
+                       train_data, val_data, device)
 
     # ============================
     # ===== Define the model =====
@@ -82,11 +94,18 @@ def main():
     model = BigramLanguageModel(vocab_size, block_size,
                                 n_embed, num_heads, n_layers,
                                 dropout)
+    if cont:
+        model.load_state_dict(torch.load(save_file))
+
     model.eval()
     model.to(device)
     _, loss = model(xb, yb)
     # Compute initial loss, should be -ln(1/vocab_size)
-    print(loss.item())
+    if cont:
+        print(f'Initial loss: {loss.item()}')
+    else:
+        print(f'Initial loss: {loss.item()} \
+                , compare with perfectly flat prior: {-np.log(1/vocab_size)}')
 
     # print initial output -> totally random, or even worse
     # print(decode(m.generate(idx = torch.zeros((1, 1), dtype=torch.long), max_new_tokens=100)[0].tolist()))
@@ -110,6 +129,9 @@ def main():
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
+
+    # save the state of the model
+    torch.save(model.state_dict(), save_file)
 
     # =================================================
     # ==== Print output resulting from a new line =====
@@ -165,8 +187,11 @@ def get_batch(split, block_size, batch_size, train_data, val_data, device):
 
 @torch.no_grad()
 def estimate_loss(model, eval_iters, block_size, batch_size, train_data, val_data, device, ctx):
-    """
-    helps estimate an arbitrarily accurate loss over either split using many batches
+    """ helps estimate an arbitrarily accurate loss over either split using many batches
+
+    Parameters
+    ----------
+    TODO
     """
     out = {}
     model.eval()
@@ -184,4 +209,17 @@ def estimate_loss(model, eval_iters, block_size, batch_size, train_data, val_dat
 
 
 if __name__ == '__main__':
-    main()
+
+    parser = ArgumentParser()
+    parser.add_argument('--cont',
+                        action='store_true',
+                        help="If the training should be continued from an existing file.")
+    args = parser.parse_args()
+    cont = args.cont
+
+    # run main with default params file
+    filepath = 'params.yml'
+    with open(filepath) as file:
+        params = yaml.load(file, Loader=yaml.FullLoader)
+
+    main(params, cont)

@@ -2,12 +2,14 @@
 TODO
 """
 
-import torch
-import yaml
-from contextlib import nullcontext
-import numpy as np
 import os
+import pickle
+import yaml
+import torch
+import numpy as np
 from argparse import ArgumentParser
+from time import time
+from contextlib import nullcontext
 
 from models import BigramLanguageModel
 
@@ -16,17 +18,20 @@ def main(params, cont=False):
     # =================================
     # ===== Read in training data =====
     # =================================
+
     with open('mb_input.txt', 'r', encoding='utf-8') as f:
         text = f.read()
+    n = 2
 
-    # get all character appearing in the text, optionally add all integers
-    chars = sorted(
-        list(set(text))
-        # + [str(k) for k in range(10)]
-    )
-    # create a mapping from characters to integers
-    itos = {i: ch for i, ch in enumerate(chars)}
-    stoi = {ch: i for i, ch in enumerate(chars)}
+    # load tokens and dicts in case of continuing
+    save_path = 'save/'
+    if cont:
+        tokens, itot, ttoi = load_tokens_from_file(save_path)
+    else:
+
+        tokens, itot, ttoi = get_tokens_from_text(text, n=n)
+
+        save_tokens_to_file(tokens, itot, ttoi, save_path)
 
     # ==========================================
     # ===== Load parameters from json file =====
@@ -46,11 +51,10 @@ def main(params, cont=False):
     seed = params['seed']
 
     torch.manual_seed(seed)
-    vocab_size = len(chars)
+    vocab_size = len(tokens)
 
     # Create folder and file to save model after training
-    save_file = 'save/model.pt'
-    save_path = os.path.dirname(save_file)
+    save_file = os.path.join(save_path, 'model.pt')
     if cont:
         assert os.path.exists(save_file)
         print('Continuing from already trained model')
@@ -77,7 +81,7 @@ def main(params, cont=False):
     # ===== Prepare data for usage =====
     # ==================================
     # let's now encode the entire text dataset and store it into a torch.Tensor
-    data = torch.tensor(encode(text, stoi), dtype=torch.long)
+    data = torch.tensor(encode(text, ttoi, n=n), dtype=torch.long)
 
     # Let's now split up the data into train and validation sets
     train = 0.8  # 80% of the data is for training, the rest for evaluation
@@ -104,8 +108,7 @@ def main(params, cont=False):
     if cont:
         print(f'Initial loss: {loss.item()}')
     else:
-        print(f'Initial loss: {loss.item()} \
-                , compare with perfectly flat prior: {-np.log(1/vocab_size)}')
+        print(f'Initial loss: {loss.item()} \tcompare with perfectly flat prior: {-np.log(1/vocab_size)}')
 
     # print initial output -> totally random, or even worse
     # print(decode(m.generate(idx = torch.zeros((1, 1), dtype=torch.long), max_new_tokens=100)[0].tolist()))
@@ -138,7 +141,7 @@ def main(params, cont=False):
     # =================================================
     context = torch.zeros((1, 1), dtype=torch.long, device=device)
     print(decode(model.generate(context, max_new_tokens=output_size,
-          block_size=block_size)[0].tolist(), itos))
+          block_size=block_size)[0].tolist(), itot))
     losses = estimate_loss(model, eval_iters, block_size,
                            batch_size, train_data, val_data,
                            device, device_type, ctx)
@@ -147,18 +150,80 @@ def main(params, cont=False):
             val loss {losses['val']:.4f}")
 
 
-def encode(s: str, stoi: dict):
-    """
-    encoder: take a string, output a list of integers
-    """
-    return [stoi[c] for c in s]
+def get_tokens_from_text(text, n=1):
+
+    if n == 1:
+        tokens = sorted(list(set(text)))
+    elif n == 2:
+        tokens = sorted(list(set([a + b for a,b in zip(text[:-1], text[1:])])))
+    else:
+        raise NotImplementedError
+
+    # create a mapping from tokens to integers
+    itot = {i: t for i, t in enumerate(tokens)}
+    ttoi = {t: i for i, t in enumerate(tokens)}
+
+    return tokens, itot, ttoi
 
 
-def decode(l: list, itos: dict):
+def save_tokens_to_file(tokens, itot, ttoi, filepath):
+    """ saves the given tokens to the specified file
+
+    Parameters
+    ----------
+    TODO
     """
-    decoder: take a list of integers, output a string
+    with open(os.path.join(filepath, 'tokens'), 'wb') as file:
+        pickle.dump(tokens, file)
+
+    with open(os.path.join(filepath, 'itot'), 'wb') as file:
+        pickle.dump(itot, file)
+
+    with open(os.path.join(filepath, 'ttoi'), 'wb') as file:
+        pickle.dump(ttoi, file)
+
+
+def load_tokens_from_file(filepath):
+    """ saves the given tokens to the specified file
+
+    Parameters
+    ----------
+    TODO
     """
-    return ''.join([itos[i] for i in l])
+    with open(os.path.join(filepath, 'tokens'), 'rb') as file:
+        tokens = pickle.load(file)
+
+    with open(os.path.join(filepath, 'itot'), 'rb') as file:
+        itot = pickle.load(file)
+
+    with open(os.path.join(filepath, 'ttoi'), 'rb') as file:
+        ttoi = pickle.load(file)
+
+    return tokens, itot, ttoi
+
+
+def encode(s: str, ttoi: dict, n=1):
+    """ encoder: take a string, output a list of integers
+    """
+    if n==1:
+        res = [ttoi[c] for c in s]
+    elif n==2:
+        res = [ttoi[c] for c in [a+b for a,b in zip(s[::2], s[1::2])]]
+    else:
+        raise NotImplementedError
+
+    return res
+
+
+def decode(l: list, itot: dict, n=1):
+    """ decoder: take a list of integers, output a string
+    """
+    if n==1:
+        res = ''.join([itot[i] for i in l])
+    else:
+        raise NotImplementedError
+
+    return res
 
 
 def get_batch(split, block_size, batch_size, train_data, val_data, device, device_type):
@@ -182,7 +247,8 @@ def get_batch(split, block_size, batch_size, train_data, val_data, device, devic
     y = torch.stack([data[i+1:i+block_size+1] for i in ix])
     if device_type == 'cuda':
         # pin arrays x,y, which allows us to move them to GPU asynchronously (non_blocking=True)
-        x, y = x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(device, non_blocking=True)
+        x, y = x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(
+            device, non_blocking=True)
     else:
         x, y = x.to(device), y.to(device)
     return x, y
@@ -225,4 +291,8 @@ if __name__ == '__main__':
     with open(filepath) as file:
         params = yaml.load(file, Loader=yaml.FullLoader)
 
+    start_time = time()
     main(params, cont)
+    end_time = time()
+
+    print(f'This took {np.round(end_time - start_time, 3)} seconds.')

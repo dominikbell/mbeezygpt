@@ -1,14 +1,14 @@
 
 vocab_size : len(chars)
-n_embed : 32
-learn_rate : 1.e-3
+n_embed : 16
+learn_rate : 3.e-4
 eval_iters : 200
 iter_num : 1000
-n_layers : 3
+n_layers : 4
 num_heads : 4
-block_size : 8   # what is the maximum context length for predictions?
-batch_size : 32
-output_size : 100  # how many characters to print of the trained network
+block_size : 5   # what is the maximum context length for predictions?
+batch_size : 64
+output_size : 200  # how many characters to print of the trained network
 dropout : 0.1
 seed : 1337
 device : 'cpu'  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks

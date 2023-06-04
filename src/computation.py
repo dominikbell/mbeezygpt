@@ -15,17 +15,20 @@ class FeedFoward(nn.Module):
     TODO
     """
 
-    def __init__(self, n_embd, dropout, ratio=4):
+    def __init__(self, n_embed, dropout, ratio=10):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(n_embd, ratio * n_embd),
-            nn.ReLU(),
-            nn.Linear(ratio * n_embd, n_embd),
-            nn.Dropout(dropout),
-        )
+        self.proj_up = nn.Linear(n_embed, ratio * n_embed)
+        self.activ = nn.ReLU()
+        self.proj_down = nn.Linear(ratio * n_embed, n_embed)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         """
         TODO
         """
-        return self.net(x)
+        x = self.proj_up(x)
+        x = self.activ(x) # ReLu
+        # x = new_gelu(x)
+        x = self.proj_down(x)
+        x = self.dropout(x)
+        return x

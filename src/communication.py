@@ -73,6 +73,6 @@ class MultiHeadAttention(nn.Module):
         TODO
         """
         out = torch.cat([h(x) for h in self.heads], dim=-1)
-        out = self.proj_down(self.dropout(self.proj_up(out)))
-        # out = self.dropout(self.proj(out))
+        # out = self.proj_down(self.dropout(self.proj_up(out)))
+        out = self.dropout(self.proj(out))
         return out

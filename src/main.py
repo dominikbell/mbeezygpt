@@ -7,45 +7,144 @@ import pickle
 import yaml
 import torch
 import numpy as np
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawTextHelpFormatter
 from time import time
 from contextlib import nullcontext
 
 from models import BigramLanguageModel
 
 
-def main(params, cont=False):
-    # =================================
-    # ===== Read in training data =====
-    # =================================
+def main():
+    # ================================
+    # ===== Main Argument Parser =====
+    # ================================
+    parser = ArgumentParser()
+    subparsers = parser.add_subparsers(title='available commands',
+                                       metavar='COMMAND',
+                                       dest='command')
 
-    with open('mb_input.txt', 'r', encoding='utf-8') as f:
-        text = f.read()
-    n = 2
+    # ====================================
+    # ===== Training Argument Parser =====
+    # ====================================
+    parser_train = subparsers.add_parser('train',
+                                         formatter_class=lambda prog: RawTextHelpFormatter(
+                                             prog, max_help_position=40),
+                                         help='train the model',
+                                         description='Train the model.')
+
+    parser_train.add_argument('inputfile',
+                              type=str,
+                              nargs='?',
+                              help='On which data to train the model.',
+                              metavar='inputfile',
+                              default='mb_input.txt')
+
+    parser_train.add_argument('--cont',
+                              action='store_true',
+                              help="If the training should be continued from an existing file.")
+
+    # =====================================
+    # ===== Freestyle Argument Parser =====
+    # =====================================
+    parser_freestyle = subparsers.add_parser('freestyle',
+                                             formatter_class=lambda prog: RawTextHelpFormatter(
+                                                 prog, max_help_position=40),
+                                             help='spit some bars',
+                                             description='Spit some bars.')
+
+    parser_freestyle.add_argument('output_size',
+                                  type=int,
+                                  nargs='?',
+                                  help='Length of the desired output (in tokens).',
+                                  metavar='output_size',
+                                  default=100)
+
+    parser_freestyle.add_argument('prompt',
+                                  type=str,
+                                  nargs='?',
+                                  help='Prompt for a freestyle (not functional yet)',
+                                  metavar='prompt',
+                                  default='\n')
+
+    # ================================
+    # ===== Parse all Arguments =====
+    # ================================
+    args = parser.parse_args()
+    command = args.command
+    if command is None:
+        print('No command given, exiting...')
+        exit()
+
+    cont = args.cont if 'cont' in args else False
+
+    # run main with default params file
+    filepath = 'params.yml'
+    with open(filepath) as file:
+        params = yaml.load(file, Loader=yaml.FullLoader)
+    
+    output_size = args.output_size if 'output_size' in args else params['output_size']
+
+    save_path = 'save/'
+    save_file = os.path.join(save_path, 'model.pt')
+    if command == 'freestyle':
+        assert os.path.exists(save_file), \
+            "The model must have been trained and saved before being able to freestyle!"
+
+    # ================================================
+    # ===== Read in saved model or training data =====
+    # ================================================
+    if command == 'train':
+        inputfile = args.inputfile
+        with open(inputfile, 'r', encoding='utf-8') as f:
+            text = f.read()
+        n = 2
 
     # load tokens and dicts in case of continuing
-    save_path = 'save/'
-    if cont:
+    if cont or command == 'freestyle':
         tokens, itot, ttoi = load_tokens_from_file(save_path)
     else:
-
         tokens, itot, ttoi = get_tokens_from_text(text, n=n)
-
         save_tokens_to_file(tokens, itot, ttoi, save_path)
 
+    # Define the Model
+    model_param_keys = ['block_size',
+                        'n_embed', 'n_heads', 'n_layers', 'dropout']
+    model_params = {x: params[x] for x in model_param_keys}
+    model_params['vocab_size'] = len(tokens)
+    model = BigramLanguageModel(**model_params)
+
+    if cont or command == 'freestyle':
+        model.load_state_dict(torch.load(save_file))
+
+    # ===================================
+    # ===== Run the actual commands =====
+    # ===================================
+    if command == 'train':
+        start_time = time()
+        train(model, params, save_path, text, tokens, ttoi, n=n, cont=cont)
+        end_time = time()
+        print(f'This took {np.round(end_time - start_time, 3)} seconds.')
+
+    # Give some output
+    bars = freestyle(model, itot, model_params['block_size'], output_size=output_size)
+    print(bars)
+
+
+def train(model, params, save_path, text, tokens, ttoi, n=1, cont=False):
+    """ Train the model, give some output and print the loss
+
+    Parameters
+    ----------
+    TODO
+    """
     # ==========================================
     # ===== Load parameters from json file =====
     # ==========================================
-    n_embed = params['n_embed']
     learn_rate = params['learn_rate']
     eval_iters = params['eval_iters']
     iter_num = params['iter_num']
-    n_layers = params['n_layers']
-    num_heads = params['num_heads']
     block_size = params['block_size']
     batch_size = params['batch_size']
-    output_size = params['output_size']
-    dropout = params['dropout']
     device = params['device']
     dtype = params['dtype']
     seed = params['seed']
@@ -95,12 +194,6 @@ def main(params, cont=False):
     # ============================
     # ===== Define the model =====
     # ============================
-    model = BigramLanguageModel(vocab_size, block_size,
-                                n_embed, num_heads, n_layers,
-                                dropout)
-    if cont:
-        model.load_state_dict(torch.load(save_file))
-
     model.eval()
     model.to(device)
     _, loss = model(xb, yb)
@@ -108,10 +201,8 @@ def main(params, cont=False):
     if cont:
         print(f'Initial loss: {loss.item()}')
     else:
-        print(f'Initial loss: {loss.item()} \tcompare with perfectly flat prior: {-np.log(1/vocab_size)}')
-
-    # print initial output -> totally random, or even worse
-    # print(decode(m.generate(idx = torch.zeros((1, 1), dtype=torch.long), max_new_tokens=100)[0].tolist()))
+        print(
+            f'Initial loss: {loss.item()} \tcompare with perfectly flat prior: {-np.log(1/vocab_size)}')
 
     # ===========================
     # ===== Train the model =====
@@ -139,15 +230,40 @@ def main(params, cont=False):
     # =================================================
     # ==== Print output resulting from a new line =====
     # =================================================
-    context = torch.zeros((1, 1), dtype=torch.long, device=device)
-    print(decode(model.generate(context, max_new_tokens=output_size,
-          block_size=block_size)[0].tolist(), itot))
     losses = estimate_loss(model, eval_iters, block_size,
                            batch_size, train_data, val_data,
                            device, device_type, ctx)
-    print(f"\nstep {iter_num}: \
+    print(f"\nAfter {iter_num} steps: \
             train loss {losses['train']:.4f}, \
             val loss {losses['val']:.4f}")
+
+
+def freestyle(model, itot, block_size, prompt=None, output_size=100, device='cpu'):
+    """ Given a prompt, spit some lines.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        the model for the text generation
+
+    itot : dict
+        integers to tokens dictionary
+
+    prompt : str
+        input to the model as basis for the freestyle. Default is new line character
+
+    output_size : int
+        How many tokens to output
+
+    device : str
+        'cpu' or 'cuda' or 'mps'
+    """
+    if prompt == None:
+        context = torch.zeros((1, 1), dtype=torch.long, device=device)
+    else:
+        context = None  # TODO
+    return decode(model.generate(context, max_new_tokens=output_size,
+                                 block_size=block_size)[0].tolist(), itot)
 
 
 def get_tokens_from_text(text, n=1):
@@ -155,7 +271,8 @@ def get_tokens_from_text(text, n=1):
     if n == 1:
         tokens = sorted(list(set(text)))
     elif n == 2:
-        tokens = sorted(list(set([a + b for a,b in zip(text[:-1], text[1:])])))
+        tokens = sorted(
+            list(set([a + b for a, b in zip(text[:-1], text[1:])])))
     else:
         raise NotImplementedError
 
@@ -205,23 +322,20 @@ def load_tokens_from_file(filepath):
 def encode(s: str, ttoi: dict, n=1):
     """ encoder: take a string, output a list of integers
     """
-    if n==1:
+    if n == 1:
         res = [ttoi[c] for c in s]
-    elif n==2:
-        res = [ttoi[c] for c in [a+b for a,b in zip(s[::2], s[1::2])]]
+    elif n == 2:
+        res = [ttoi[c] for c in [a+b for a, b in zip(s[::2], s[1::2])]]
     else:
         raise NotImplementedError
 
     return res
 
 
-def decode(l: list, itot: dict, n=1):
+def decode(l: list, itot: dict):
     """ decoder: take a list of integers, output a string
     """
-    if n==1:
-        res = ''.join([itot[i] for i in l])
-    else:
-        raise NotImplementedError
+    res = ''.join([itot[i] for i in l])
 
     return res
 
@@ -278,21 +392,4 @@ def estimate_loss(model, eval_iters, block_size, batch_size, train_data, val_dat
 
 
 if __name__ == '__main__':
-
-    parser = ArgumentParser()
-    parser.add_argument('--cont',
-                        action='store_true',
-                        help="If the training should be continued from an existing file.")
-    args = parser.parse_args()
-    cont = args.cont
-
-    # run main with default params file
-    filepath = 'params.yml'
-    with open(filepath) as file:
-        params = yaml.load(file, Loader=yaml.FullLoader)
-
-    start_time = time()
-    main(params, cont)
-    end_time = time()
-
-    print(f'This took {np.round(end_time - start_time, 3)} seconds.')
+    main()

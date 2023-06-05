@@ -1,3 +1,4 @@
 src/__pycache__/
-src/main.egg-info/
+src/mbeezy.egg-info/
 save/
+mb_input backup.txt

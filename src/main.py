@@ -52,17 +52,17 @@ def main():
                                              help='spit some bars',
                                              description='Spit some bars.')
 
-    parser_freestyle.add_argument('output_size',
+    parser_freestyle.add_argument('-o', '--output_size',
                                   type=int,
-                                  nargs='?',
+                                  nargs=1,
                                   help='Length of the desired output (in tokens).',
                                   metavar='output_size',
-                                  default=100)
+                                  default=[100])
 
     parser_freestyle.add_argument('prompt',
                                   type=str,
                                   nargs='?',
-                                  help='Prompt for a freestyle (not functional yet)',
+                                  help='Prompt for a freestyle (passed as a string)',
                                   metavar='prompt',
                                   default='\n')
 
@@ -71,24 +71,28 @@ def main():
     # ================================
     args = parser.parse_args()
     command = args.command
+
+    # Exit if no command is given
     if command is None:
         print('No command given, exiting...')
         exit()
 
-    cont = args.cont if 'cont' in args else False
-
-    # run main with default params file
+    # Run main with default params file
     filepath = 'params.yml'
     with open(filepath) as file:
         params = yaml.load(file, Loader=yaml.FullLoader)
-    
-    output_size = args.output_size if 'output_size' in args else params['output_size']
 
+    # Read out arguments or set defaults
+    cont = args.cont if 'cont' in args else False
+    output_size = args.output_size[0] if 'output_size' in args else params['output_size']
+
+    # Define path for saving and load for freestyle
     save_path = 'save/'
     save_file = os.path.join(save_path, 'model.pt')
     if command == 'freestyle':
         assert os.path.exists(save_file), \
             "The model must have been trained and saved before being able to freestyle!"
+        prompt = args.prompt
 
     # ================================================
     # ===== Read in saved model or training data =====
@@ -102,6 +106,7 @@ def main():
     # load tokens and dicts in case of continuing
     if cont or command == 'freestyle':
         tokens, itot, ttoi = load_tokens_from_file(save_path)
+        n = len(tokens[0])
     else:
         tokens, itot, ttoi = get_tokens_from_text(text, n=n)
         save_tokens_to_file(tokens, itot, ttoi, save_path)
@@ -116,9 +121,9 @@ def main():
     if cont or command == 'freestyle':
         model.load_state_dict(torch.load(save_file))
 
-    # ===================================
-    # ===== Run the actual commands =====
-    # ===================================
+    # ============================
+    # ===== Run the Training =====
+    # ============================
     if command == 'train':
         start_time = time()
         train(model, params, save_path, text, tokens, ttoi, n=n, cont=cont)
@@ -126,7 +131,11 @@ def main():
         print(f'This took {np.round(end_time - start_time, 3)} seconds.')
 
     # Give some output
-    bars = freestyle(model, itot, model_params['block_size'], output_size=output_size)
+    bars = freestyle(model, itot, ttoi,
+                     model_params['block_size'],
+                     n=n,
+                     output_size=output_size,
+                     prompt=prompt)
     print(bars)
 
 
@@ -238,7 +247,7 @@ def train(model, params, save_path, text, tokens, ttoi, n=1, cont=False):
             val loss {losses['val']:.4f}")
 
 
-def freestyle(model, itot, block_size, prompt=None, output_size=100, device='cpu'):
+def freestyle(model, itot, ttoi, block_size, n=1, prompt=None, output_size=100, device='cpu'):
     """ Given a prompt, spit some lines.
 
     Parameters
@@ -258,10 +267,12 @@ def freestyle(model, itot, block_size, prompt=None, output_size=100, device='cpu
     device : str
         'cpu' or 'cuda' or 'mps'
     """
-    if prompt == None:
+    if prompt == '\n':
         context = torch.zeros((1, 1), dtype=torch.long, device=device)
     else:
-        context = None  # TODO
+        context = torch.tensor(
+            np.atleast_2d(np.array(encode(prompt, ttoi, n=n))),
+            dtype=torch.long, device=device)
     return decode(model.generate(context, max_new_tokens=output_size,
                                  block_size=block_size)[0].tolist(), itot)
 

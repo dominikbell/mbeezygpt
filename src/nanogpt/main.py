@@ -11,7 +11,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from time import time
 from contextlib import nullcontext
 
-from models import BigramLanguageModel
+from .models import BigramLanguageModel
 
 
 def main():

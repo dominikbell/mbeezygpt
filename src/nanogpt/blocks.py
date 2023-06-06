@@ -4,8 +4,8 @@ TODO
 
 import torch.nn as nn
 
-from communication import MultiHeadAttention
-from computation import FeedFoward
+from .communication import MultiHeadAttention
+from .computation import FeedFoward
 
 
 class StandardBlock(nn.Module):

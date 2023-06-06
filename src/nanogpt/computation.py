@@ -4,7 +4,7 @@ TODO
 
 import torch.nn as nn
 
-from utils import new_gelu
+from .utils import new_gelu
 
 
 class FeedFoward(nn.Module):

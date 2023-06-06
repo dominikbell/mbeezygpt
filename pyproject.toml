@@ -23,4 +23,4 @@ dependencies = [
 ]
 
 [project.scripts]
-mbeezy = "main:main"
+mbeezy = "nanogpt.main:main"

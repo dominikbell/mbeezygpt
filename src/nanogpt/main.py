@@ -11,6 +11,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from time import time
 from contextlib import nullcontext
 
+import nanogpt
 from .models import BigramLanguageModel
 
 
@@ -77,8 +78,11 @@ def main():
         print('No command given, exiting...')
         exit()
 
+    # Get main install path
+    install_path = nanogpt.__path__[0].split('src')[0]
+
     # Run main with default params file
-    filepath = 'params.yml'
+    filepath = os.path.join(install_path, 'params.yml')
     with open(filepath) as file:
         params = yaml.load(file, Loader=yaml.FullLoader)
 
@@ -87,7 +91,7 @@ def main():
     output_size = args.output_size[0] if 'output_size' in args else params['output_size']
 
     # Define path for saving and load for freestyle
-    save_path = 'save/'
+    save_path = os.path.join(install_path, 'save/')
     save_file = os.path.join(save_path, 'model.pt')
     if command == 'freestyle':
         assert os.path.exists(save_file), \

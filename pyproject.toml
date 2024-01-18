@@ -1,8 +1,8 @@
 [project]
-name = "mbeezy"
+name = "mbeezygpt"
 version = "0.0.1"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = {file = "LICENSE"}
 
 authors = [
@@ -20,7 +20,8 @@ dependencies = [
     'tqdm',
     'torch',
     'lxml',
+    'pyyaml',
 ]
 
 [project.scripts]
-mbeezy = "nanogpt.main:main"
+mbeezy = "mbeezygpt.main:main"

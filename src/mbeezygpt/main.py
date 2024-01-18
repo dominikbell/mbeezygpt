@@ -11,7 +11,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from time import time
 from contextlib import nullcontext
 
-import nanogpt
+import mbeezygpt
 from .models import BigramLanguageModel
 
 
@@ -80,7 +80,7 @@ def main():
         exit()
 
     # Get main install path
-    install_path = nanogpt.__path__[0].split('src')[0]
+    install_path = mbeezygpt.__path__[0]
 
     # Run main with default params file
     filepath = os.path.join(install_path, 'params.yml')

@@ -1,4 +1,5 @@
 src/nanogpt/__pycache__/
 src/mbeezy.egg-info/
 save/
+backup/
 mb_input backup.txt

@@ -72,6 +72,7 @@ def main():
     # ================================
     args = parser.parse_args()
     command = args.command
+    assert command in ['train', 'freestyle']
 
     # Exit if no command is given
     if command is None:
@@ -93,6 +94,8 @@ def main():
     # Define path for saving and load for freestyle
     save_path = os.path.join(install_path, 'save/')
     save_file = os.path.join(save_path, 'model.pt')
+
+    # Assert model state exists and get prompt for freestyle
     if command == 'freestyle':
         assert os.path.exists(save_file), \
             "The model must have been trained and saved before being able to freestyle!"
@@ -122,6 +125,7 @@ def main():
     model_params['vocab_size'] = len(tokens)
     model = BigramLanguageModel(**model_params)
 
+    # load the model
     if cont or command == 'freestyle':
         model.load_state_dict(torch.load(save_file))
 
@@ -134,13 +138,15 @@ def main():
         end_time = time()
         print(f'This took {np.round(end_time - start_time, 3)} seconds.')
 
-    # Give some output
-    bars = freestyle(model, itot, ttoi,
-                     model_params['block_size'],
-                     n=n,
-                     output_size=output_size,
-                     prompt=prompt)
-    print(bars)
+    # ===== Or output Freestyle =====
+    else:
+        # Give some output
+        bars = freestyle(model, itot, ttoi,
+                        model_params['block_size'],
+                        n=n,
+                        output_size=output_size,
+                        prompt=prompt)
+        print(bars)
 
 
 def train(model, params, save_path, text, tokens, ttoi, n=1, cont=False):
@@ -371,15 +377,18 @@ def get_batch(split, block_size, batch_size, train_data, val_data, device, devic
         data = train_data
     else:
         data = val_data
+
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack([data[i:i+block_size] for i in ix])
     y = torch.stack([data[i+1:i+block_size+1] for i in ix])
+
     if device_type == 'cuda':
         # pin arrays x,y, which allows us to move them to GPU asynchronously (non_blocking=True)
         x, y = x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(
             device, non_blocking=True)
     else:
         x, y = x.to(device), y.to(device)
+
     return x, y
 
 

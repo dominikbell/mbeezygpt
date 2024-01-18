@@ -1,6 +1,5 @@
 src/mbeezygpt/__pycache__/
 src/mbeezy.egg-info/
 build/
-save/
 backup/
 mb_input backup.txt

@@ -6,7 +6,7 @@ import torch
 from torch.nn import functional as F
 import torch.nn as nn
 
-from .blocks import StandardBlock
+from mbeezygpt.blocks import StandardBlock
 
 
 class BigramLanguageModel(nn.Module):

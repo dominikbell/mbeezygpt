@@ -12,7 +12,7 @@ from time import time
 from contextlib import nullcontext
 
 import mbeezygpt
-from .models import BigramLanguageModel
+from mbeezygpt.models import BigramLanguageModel
 
 
 def main():
@@ -147,6 +147,50 @@ def main():
                         output_size=output_size,
                         prompt=prompt)
         print(bars)
+
+
+def api(prompt):
+    # Get main install path
+    install_path = mbeezygpt.__path__[0]
+
+    # Run main with default params file
+    filepath = os.path.join(install_path, 'params.yml')
+    with open(filepath) as file:
+        params = yaml.load(file, Loader=yaml.FullLoader)
+
+    # Read out arguments or set defaults
+    output_size = params['output_size']
+
+    # Define path for saving and load for freestyle
+    save_path = os.path.join(install_path, 'save/')
+    save_file = os.path.join(save_path, 'model.pt')
+
+    # Assert model state exists and get prompt for freestyle
+    assert os.path.exists(save_file), \
+        "The model must have been trained and saved before being able to freestyle!"
+
+    # ===============================
+    # ===== Read in saved model =====
+    # ===============================
+    tokens, itot, ttoi = load_tokens_from_file(save_path)
+    n = len(tokens[0])
+
+    # Define the Model
+    model_param_keys = ['block_size',
+                        'n_embed', 'n_heads', 'n_layers', 'dropout']
+    model_params = {x: params[x] for x in model_param_keys}
+    model_params['vocab_size'] = len(tokens)
+    model = BigramLanguageModel(**model_params)
+
+    # load the model
+    model.load_state_dict(torch.load(save_file))
+
+    bars = freestyle(model, itot, ttoi,
+                    model_params['block_size'],
+                    n=n,
+                    output_size=output_size,
+                    prompt=prompt)
+    return bars
 
 
 def train(model, params, save_path, text, tokens, ttoi, n=1, cont=False):
@@ -284,7 +328,7 @@ def freestyle(model, itot, ttoi, block_size, n=1, prompt=None, output_size=100, 
             np.atleast_2d(np.array(encode(prompt, ttoi, n=n))),
             dtype=torch.long, device=device)
     return decode(model.generate(context, max_new_tokens=output_size,
-                                 block_size=block_size)[0].tolist(), itot)
+                                 block_size=block_size)[0].tolist(), itot)[1:]
 
 
 def get_tokens_from_text(text, n=1):

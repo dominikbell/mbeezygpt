@@ -25,3 +25,6 @@ dependencies = [
 
 [project.scripts]
 mbeezy = "mbeezygpt.main:main"
+
+[tool.setuptools.package-data]
+mbeezygpt = ["params.yml", "save/*"]

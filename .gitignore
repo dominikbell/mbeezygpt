@@ -1,5 +1,7 @@
-src/mbeezygpt/__pycache__/
-src/mbeezy.egg-info/
+__pycache__/
+src/mbeezygpt.egg-info/
+*.egg-info/
 build/
+save/
 backup/
 mb_input backup.txt

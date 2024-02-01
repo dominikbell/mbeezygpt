@@ -1,6 +1,0 @@
-numpy
-pytest
-tqdm
-torch
-lxml
-pyyaml
